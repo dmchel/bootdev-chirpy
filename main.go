@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+
+	h "github.com/dmchel/bootdev-chirpy/handlers/healthcheck"
 )
 
 func main() {
@@ -12,7 +14,8 @@ func main() {
 		Handler: mux,
 	}
 
-	mux.Handle("/", http.FileServer(http.Dir(".")))
+	mux.Handle("/app", http.StripPrefix("/app", http.FileServer(http.Dir("./app"))))
+	mux.HandleFunc("/healthz", h.HealthcheckHandler)
 
 	log.Println("Starting server", server.Addr)
 	log.Panic(server.ListenAndServe())
