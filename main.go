@@ -1,12 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"sync/atomic"
 
 	h "github.com/dmchel/bootdev-chirpy/handlers/healthcheck"
+	v "github.com/dmchel/bootdev-chirpy/handlers/validation"
 )
 
 type apiConfig struct {
@@ -24,9 +25,10 @@ func main() {
 	fs := http.FileServer(http.Dir("./app"))
 
 	mux.Handle("/app/", http.StripPrefix("/app", apiCfg.middlewareMetricsInc(fs)))
-	mux.HandleFunc("/healthz", h.HealthcheckHandler)
-	mux.HandleFunc("/metrics", apiCfg.metricsHandler)
-	mux.HandleFunc("/reset", apiCfg.resetMetricsHandler)
+	mux.HandleFunc("GET /api/healthz", h.HealthcheckHandler)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
+	mux.HandleFunc("POST /admin/reset", apiCfg.resetMetricsHandler)
+	mux.HandleFunc("POST /api/validate_chirp", v.ValidateChirpHandler)
 
 	log.Println("Starting server", server.Addr)
 	log.Panic(server.ListenAndServe())
@@ -40,11 +42,20 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(200)
 
-	hits := "Hits: " + strconv.Itoa(int(cfg.fileserverHits.Load()))
-	w.Write([]byte(hits))
+	hits := cfg.fileserverHits.Load()
+	html := fmt.Sprintf(`
+<html>
+	<body>
+		<h1>Welcome, Chirpy Admin</h1>
+		<p>Chirpy has been visited %d times!</p>
+	</body>
+</html>`,
+		hits)
+
+	w.Write([]byte(html))
 }
 
 func (cfg *apiConfig) resetMetricsHandler(w http.ResponseWriter, r *http.Request) {
