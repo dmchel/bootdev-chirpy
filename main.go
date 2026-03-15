@@ -46,6 +46,7 @@ func main() {
 	mux.HandleFunc("POST /api/users", users.CreateUser)
 	mux.HandleFunc("POST /api/chirps", chirps.CreateChirp)
 	mux.HandleFunc("GET /api/chirps", chirps.GetChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpId}", chirps.GetChirp)
 
 	log.Println("Starting server", server.Addr)
 	log.Panic(server.ListenAndServe())

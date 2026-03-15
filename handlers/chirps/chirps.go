@@ -1,6 +1,7 @@
 package chirps
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -135,6 +136,52 @@ func (h *ChirpsHandler) GetChirps(w http.ResponseWriter, r *http.Request) {
 	bytes, err := json.Marshal(resultList)
 	if err != nil {
 		log.Println("Failed to marshal list of chirps", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	utils.RespondBytes(w, http.StatusOK, bytes)
+}
+
+func (h *ChirpsHandler) GetChirp(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpId")
+	chirp, err := h.apiConfig.DBQueries.GetChirp(r.Context(), chirpId)
+	if err != nil {
+		log.Println("Failed to get chirp", err)
+		if err == sql.ErrNoRows {
+			utils.NotFoundHandler(w, r)
+		} else {
+			utils.InternalServerErrorHandler(w, r)
+		}
+		return
+	}
+
+	id, err := uuid.Parse(chirp.ID)
+	if err != nil {
+		log.Println("Invalid chirp ID returned from DB", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	userId, err := uuid.Parse(chirp.UserID)
+	if err != nil {
+		log.Println("Invalid user ID returned from DB", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	result := Chirp{
+		ID:        id,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    userId,
+	}
+
+	log.Println("Get chirp:", result)
+	bytes, err := json.Marshal(result)
+	if err != nil {
+		log.Println("Failed to marshal chirp", err)
 		utils.InternalServerErrorHandler(w, r)
 		return
 	}
