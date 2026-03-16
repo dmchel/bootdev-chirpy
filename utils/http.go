@@ -44,6 +44,11 @@ func ForbiddenHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("403 Forbidden"))
 }
 
+func UnauthorizedHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Write([]byte("401 Unauthorized"))
+}
+
 func BadRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte("400 Bad Request"))
