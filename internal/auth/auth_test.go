@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -77,5 +78,20 @@ func TestExpiredJWT(t *testing.T) {
 	_, err = ValidateJWT(token, "test-secret")
 	if err == nil {
 		t.Error("No error reported for an expired token")
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	headers := make(http.Header)
+	headers.Add("Authorization", "Bearer 12345678")
+
+	token, err := GetBearerToken(headers)
+	if err != nil {
+		t.Error("Unexpected error:", err)
+		return
+	}
+
+	if token != "12345678" {
+		t.Errorf("Unexpected token returned")
 	}
 }

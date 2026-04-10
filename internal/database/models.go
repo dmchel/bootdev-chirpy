@@ -17,6 +17,15 @@ type Chirp struct {
 	UserID    string
 }
 
+type RefreshToken struct {
+	Token     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	UserID    string
+	ExpiresAt time.Time
+	RevokedAt sql.NullTime
+}
+
 type User struct {
 	ID             string
 	CreatedAt      time.Time

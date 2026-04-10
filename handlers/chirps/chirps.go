@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cfg "github.com/dmchel/bootdev-chirpy/config"
+	"github.com/dmchel/bootdev-chirpy/internal/auth"
 	"github.com/dmchel/bootdev-chirpy/internal/database"
 	"github.com/dmchel/bootdev-chirpy/utils"
 	"github.com/google/uuid"
@@ -32,11 +33,17 @@ func NewChirpsHandler(apiConfig *cfg.ApiConfig) *ChirpsHandler {
 
 func (h *ChirpsHandler) CreateChirp(w http.ResponseWriter, r *http.Request) {
 	type createChirpRequest struct {
-		Body   string `json:"body"`
-		UserID string `json:"user_id"`
+		Body string `json:"body"`
 	}
 	type errorResponse struct {
 		Error string `json:"error"`
+	}
+
+	authUserId, err := getUserIdentityFromAuth(r, h.apiConfig.JWTSecret)
+	if err != nil {
+		log.Println("Auth failed", err)
+		utils.UnauthorizedHandler(w, r)
+		return
 	}
 
 	var chirpReq createChirpRequest
@@ -55,7 +62,7 @@ func (h *ChirpsHandler) CreateChirp(w http.ResponseWriter, r *http.Request) {
 
 	params := database.CreateChirpParams{
 		Body:   cleanChirp(chirpReq.Body),
-		UserID: chirpReq.UserID,
+		UserID: authUserId.String(),
 	}
 
 	chirp, err := h.apiConfig.DBQueries.CreateChirp(r.Context(), params)
@@ -207,4 +214,13 @@ func cleanChirp(body string) string {
 	}
 
 	return strings.Join(words, " ")
+}
+
+func getUserIdentityFromAuth(r *http.Request, tokenSecret string) (uuid.UUID, error) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	return auth.ValidateJWT(token, tokenSecret)
 }

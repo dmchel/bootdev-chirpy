@@ -9,6 +9,7 @@ import (
 	cfg "github.com/dmchel/bootdev-chirpy/config"
 	"github.com/dmchel/bootdev-chirpy/handlers/chirps"
 	h "github.com/dmchel/bootdev-chirpy/handlers/healthcheck"
+	"github.com/dmchel/bootdev-chirpy/handlers/tokens"
 	"github.com/dmchel/bootdev-chirpy/handlers/users"
 	"github.com/dmchel/bootdev-chirpy/internal/database"
 
@@ -25,6 +26,7 @@ func main() {
 		Handler: mux,
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
 	platform := os.Getenv("PLATFORM")
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
@@ -34,8 +36,9 @@ func main() {
 
 	dbQueries := database.New(db)
 
-	apiCfg := cfg.ApiConfig{DBQueries: dbQueries, Platform: platform}
+	apiCfg := cfg.ApiConfig{DBQueries: dbQueries, Platform: platform, JWTSecret: jwtSecret}
 	users := users.NewUserHandler(&apiCfg)
+	tokens := tokens.NewTokensHandler(&apiCfg)
 	chirps := chirps.NewChirpsHandler(&apiCfg)
 	fs := http.FileServer(http.Dir("./app"))
 
@@ -48,6 +51,8 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", chirps.CreateChirp)
 	mux.HandleFunc("GET /api/chirps", chirps.GetChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", chirps.GetChirp)
+	mux.HandleFunc("POST /api/refresh", tokens.RefreshAuthToken)
+	mux.HandleFunc("POST /api/revoke", tokens.RevokeRefreshToken)
 
 	log.Println("Starting server", server.Addr)
 	log.Panic(server.ListenAndServe())

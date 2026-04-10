@@ -14,15 +14,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const DefaultExpiresInSeconds = 3600
+
 type UsersHandler struct {
 	apiConfig *cfg.ApiConfig
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 func NewUserHandler(apiConfig *cfg.ApiConfig) *UsersHandler {
@@ -115,6 +119,8 @@ func (h *UsersHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expiresInSeconds := DefaultExpiresInSeconds
+
 	user, err := h.apiConfig.DBQueries.GetUser(r.Context(), loginReq.Email)
 	if err != nil {
 		log.Println("Failed to get user:", err)
@@ -151,11 +157,31 @@ func (h *UsersHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := auth.MakeJWT(id, h.apiConfig.JWTSecret, time.Duration(expiresInSeconds)*time.Second)
+	if err != nil {
+		log.Println("Couldn't make JWT:", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	refreshToken, err := h.apiConfig.DBQueries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     auth.MakeRefreshToken(),
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+	})
+	if err != nil {
+		log.Println("Couldn't save refresh token:", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
 	result := User{
-		ID:        id,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:           id,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refreshToken.Token,
 	}
 
 	log.Println("User login:", result)
