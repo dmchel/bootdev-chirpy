@@ -194,3 +194,77 @@ func (h *UsersHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	utils.RespondBytes(w, http.StatusOK, bytes)
 }
+
+func (h *UsersHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	type updateUserRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	var userReq updateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&userReq); err != nil {
+		log.Println("Failed to decode update user request", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	if userReq.Email == "" {
+		log.Println("Empty email is not allowed")
+		utils.BadRequestHandler(w, r)
+		return
+	}
+
+	if userReq.Password == "" {
+		log.Println("Empty password is not allowed")
+		utils.BadRequestHandler(w, r)
+		return
+	}
+
+	authUserId, err := utils.GetUserIdentityFromAuth(r, h.apiConfig.JWTSecret)
+	if err != nil {
+		log.Println("Auth failed", err)
+		utils.UnauthorizedHandler(w, r)
+		return
+	}
+
+	hash, err := auth.HashPassword(userReq.Password)
+	if err != nil {
+		log.Println("Failed to hash user password", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+	var dbHash sql.NullString
+	dbHash.String = hash
+	dbHash.Valid = true
+
+	user, err := h.apiConfig.DBQueries.UpdateUser(r.Context(), database.UpdateUserParams{Email: userReq.Email, HashedPassword: dbHash, ID: authUserId.String()})
+	if err != nil {
+		log.Println("Failed to create new user", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	id, err := uuid.Parse(user.ID)
+	if err != nil {
+		log.Println("Invalid user ID returned from DB", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	result := User{
+		ID:        id,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	log.Println("User updated:", result)
+	bytes, err := json.Marshal(result)
+	if err != nil {
+		log.Println("Failed to marshal user", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	utils.RespondBytes(w, http.StatusOK, bytes)
+}

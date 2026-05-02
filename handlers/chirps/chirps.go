@@ -9,7 +9,6 @@ import (
 	"time"
 
 	cfg "github.com/dmchel/bootdev-chirpy/config"
-	"github.com/dmchel/bootdev-chirpy/internal/auth"
 	"github.com/dmchel/bootdev-chirpy/internal/database"
 	"github.com/dmchel/bootdev-chirpy/utils"
 	"github.com/google/uuid"
@@ -39,7 +38,7 @@ func (h *ChirpsHandler) CreateChirp(w http.ResponseWriter, r *http.Request) {
 		Error string `json:"error"`
 	}
 
-	authUserId, err := getUserIdentityFromAuth(r, h.apiConfig.JWTSecret)
+	authUserId, err := utils.GetUserIdentityFromAuth(r, h.apiConfig.JWTSecret)
 	if err != nil {
 		log.Println("Auth failed", err)
 		utils.UnauthorizedHandler(w, r)
@@ -196,6 +195,42 @@ func (h *ChirpsHandler) GetChirp(w http.ResponseWriter, r *http.Request) {
 	utils.RespondBytes(w, http.StatusOK, bytes)
 }
 
+func (h *ChirpsHandler) DeleteChirp(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpId")
+	authUserId, err := utils.GetUserIdentityFromAuth(r, h.apiConfig.JWTSecret)
+	if err != nil {
+		log.Println("Auth failed", err)
+		utils.UnauthorizedHandler(w, r)
+		return
+	}
+
+	chirp, err := h.apiConfig.DBQueries.GetChirp(r.Context(), chirpId)
+	if err != nil {
+		log.Println("Failed to get chirp", err)
+		if err == sql.ErrNoRows {
+			utils.NotFoundHandler(w, r)
+		} else {
+			utils.InternalServerErrorHandler(w, r)
+		}
+		return
+	}
+
+	if chirp.UserID != authUserId.String() {
+		log.Printf("User %s tried to delete someone else's chirp!", authUserId.String())
+		utils.ForbiddenHandler(w, r)
+		return
+	}
+
+	chirp, err = h.apiConfig.DBQueries.DeleteChirp(r.Context(), chirpId)
+	if err != nil {
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	log.Println("Chirp has been deleted: ", chirp)
+	utils.Respond(w, http.StatusNoContent, nil)
+}
+
 func cleanChirp(body string) string {
 	if len(body) == 0 {
 		return ""
@@ -214,13 +249,4 @@ func cleanChirp(body string) string {
 	}
 
 	return strings.Join(words, " ")
-}
-
-func getUserIdentityFromAuth(r *http.Request, tokenSecret string) (uuid.UUID, error) {
-	token, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		return uuid.UUID{}, err
-	}
-
-	return auth.ValidateJWT(token, tokenSecret)
 }

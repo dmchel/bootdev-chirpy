@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/dmchel/bootdev-chirpy/internal/auth"
+	"github.com/google/uuid"
 )
 
 const ContentTypeJson = "application/json; charset=utf-8"
@@ -11,6 +14,9 @@ const ContentTypeJson = "application/json; charset=utf-8"
 func Respond(w http.ResponseWriter, code int, data any) {
 	w.Header().Set("Content-Type", ContentTypeJson)
 	w.WriteHeader(code)
+	if data == nil {
+		return
+	}
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Println("Respond failed", err)
 	}
@@ -52,4 +58,13 @@ func UnauthorizedHandler(w http.ResponseWriter, r *http.Request) {
 func BadRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte("400 Bad Request"))
+}
+
+func GetUserIdentityFromAuth(r *http.Request, tokenSecret string) (uuid.UUID, error) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	return auth.ValidateJWT(token, tokenSecret)
 }
