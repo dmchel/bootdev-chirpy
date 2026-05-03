@@ -105,6 +105,9 @@ func (h *ChirpsHandler) CreateChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ChirpsHandler) GetChirps(w http.ResponseWriter, r *http.Request) {
+
+	//authorId := r.URL.Query().Get("author_id")
+
 	chirps, err := h.apiConfig.DBQueries.GetChirps(r.Context())
 	if err != nil {
 		log.Println("Failed to get chirps", err)

@@ -95,3 +95,18 @@ func TestGetBearerToken(t *testing.T) {
 		t.Errorf("Unexpected token returned")
 	}
 }
+
+func TestGetApiKey(t *testing.T) {
+	headers := make(http.Header)
+	headers.Add("Authorization", "ApiKey adcdefgh12345")
+
+	apiKey, err := GetApiKey(headers)
+	if err != nil {
+		t.Error("Unexpected error:", err)
+		return
+	}
+
+	if apiKey != "adcdefgh12345" {
+		t.Errorf("Unexpected api key returned: got %s, expect %s", apiKey, "adcdefgh12345")
+	}
+}

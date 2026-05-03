@@ -27,6 +27,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func NewUserHandler(apiConfig *cfg.ApiConfig) *UsersHandler {
@@ -83,10 +84,11 @@ func (h *UsersHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := User{
-		ID:        id,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          id,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 
 	log.Println("User created:", result)
@@ -182,6 +184,7 @@ func (h *UsersHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        token,
 		RefreshToken: refreshToken.Token,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 
 	log.Println("User login:", result)
@@ -252,10 +255,11 @@ func (h *UsersHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := User{
-		ID:        id,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          id,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 
 	log.Println("User updated:", result)
@@ -267,4 +271,53 @@ func (h *UsersHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondBytes(w, http.StatusOK, bytes)
+}
+
+func (h *UsersHandler) UserUpgradedCallback(w http.ResponseWriter, r *http.Request) {
+
+	apiKey, err := auth.GetApiKey(r.Header)
+	if err != nil {
+		log.Println("Failed to read API key.", err)
+		utils.UnauthorizedHandler(w, r)
+		return
+	}
+
+	if apiKey != h.apiConfig.PolkaKey {
+		utils.UnauthorizedHandler(w, r)
+		return
+	}
+
+	type eventData struct {
+		UserId string `json:"user_id"`
+	}
+
+	type polkaEvent struct {
+		Event string    `json:"event"`
+		Data  eventData `json:"data"`
+	}
+
+	var event polkaEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		log.Println("Failed to decode polka event", err)
+		utils.InternalServerErrorHandler(w, r)
+		return
+	}
+
+	if event.Event != "user.upgraded" {
+		utils.Respond(w, http.StatusNoContent, nil)
+		return
+	}
+
+	user, err := h.apiConfig.DBQueries.UpdateUserToChirpyRed(r.Context(), database.UpdateUserToChirpyRedParams{IsChirpyRed: true, ID: event.Data.UserId})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.NotFoundHandler(w, r)
+		} else {
+			utils.InternalServerErrorHandler(w, r)
+		}
+		return
+	}
+
+	log.Println("User upgraded to Red Chirpy: ", user)
+	utils.Respond(w, http.StatusNoContent, nil)
 }

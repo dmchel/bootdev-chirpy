@@ -26,6 +26,7 @@ func main() {
 		Handler: mux,
 	}
 
+	polkaKey := os.Getenv("POLKA_KEY")
 	jwtSecret := os.Getenv("JWT_SECRET")
 	platform := os.Getenv("PLATFORM")
 	dbURL := os.Getenv("DB_URL")
@@ -36,7 +37,7 @@ func main() {
 
 	dbQueries := database.New(db)
 
-	apiCfg := cfg.ApiConfig{DBQueries: dbQueries, Platform: platform, JWTSecret: jwtSecret}
+	apiCfg := cfg.ApiConfig{DBQueries: dbQueries, Platform: platform, JWTSecret: jwtSecret, PolkaKey: polkaKey}
 	users := users.NewUserHandler(&apiCfg)
 	tokens := tokens.NewTokensHandler(&apiCfg)
 	chirps := chirps.NewChirpsHandler(&apiCfg)
@@ -55,6 +56,7 @@ func main() {
 	mux.HandleFunc("DELETE /api/chirps/{chirpId}", chirps.DeleteChirp)
 	mux.HandleFunc("POST /api/refresh", tokens.RefreshAuthToken)
 	mux.HandleFunc("POST /api/revoke", tokens.RevokeRefreshToken)
+	mux.HandleFunc("POST /api/polka/webhooks", users.UserUpgradedCallback)
 
 	log.Println("Starting server", server.Addr)
 	log.Panic(server.ListenAndServe())
