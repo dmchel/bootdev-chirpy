@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func (h *ChirpsHandler) CreateChirp(w http.ResponseWriter, r *http.Request) {
 func (h *ChirpsHandler) GetChirps(w http.ResponseWriter, r *http.Request) {
 
 	authorId := r.URL.Query().Get("author_id")
+	s := r.URL.Query().Get("sort")
 
 	var chirps []database.Chirp
 	var err error
@@ -145,6 +147,12 @@ func (h *ChirpsHandler) GetChirps(w http.ResponseWriter, r *http.Request) {
 			UserID:    userId,
 		}
 		resultList = append(resultList, result)
+	}
+
+	if s == "desc" {
+		sort.Slice(resultList, func(i, j int) bool {
+			return resultList[i].CreatedAt.After(resultList[j].CreatedAt)
+		})
 	}
 
 	log.Println("Get all chirps:", resultList)
